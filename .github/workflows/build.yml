@@ -1,0 +1,35 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: 17}
+      - run: npm install
+      - run: |
+          mkdir -p www
+          cp index.html www/
+          cp node_modules/three/build/three.min.js www/three.min.js
+          sed -i 's#https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js#three.min.js#' www/index.html
+      - run: npx cap add android
+      - run: mkdir -p assets && mv *.png assets/
+      - run: npx @capacitor/assets generate --android
+      - run: sed -i 's/<activity /<activity android:screenOrientation="landscape" /' android/app/src/main/AndroidManifest.xml
+      - run: npx cap sync android
+      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: totis-kitchen-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/app-debug.apk
